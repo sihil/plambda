@@ -1,0 +1,20 @@
+# Created by .ignore support plugin (hsz.mobi)
+### PlayFramework template
+# Ignore Play! working directory #
+.idea
+/logs/
+/project/target
+/target
+### Scala template
+*.class
+*.log
+
+# sbt specific
+.history
+.lib/
+dist/*
+target/
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
