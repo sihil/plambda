@@ -5,8 +5,8 @@ description := "Wrapper for running Play! apps in AWS Lambda"
 
 scalaVersion in ThisProject := "2.11.8"
 
-val playVersion = "2.5.9"
-val awsSdkVersion = "1.11.52"
+val playVersion = "2.5.0"
+val awsSdkVersion = "1.11.0"
 
 libraryDependencies ++= Seq(
   "com.typesafe.play" %% "play" % playVersion % "provided",

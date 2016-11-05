@@ -40,6 +40,14 @@ object LambdaEntrypoint {
   val PLAMBDA_ENDPOINT = "/plambda"
   val COOKIE_ENDPOINT = s"$PLAMBDA_ENDPOINT/moreCookies"
   val PING_ENDPOINT = s"$PLAMBDA_ENDPOINT/ping"
+
+  var started = false
+  def init() = {
+    if (!started) {
+      started = true
+      println(s"Initialised LambdaEntrypoint in ${application.mode.toString} mode")
+    }
+  }
 }
 
 class LambdaEntrypoint extends Writeables {
@@ -56,6 +64,9 @@ class LambdaEntrypoint extends Writeables {
         lambdaRequest match {
           case LambdaRequest("PING", _, _, _, _) =>
             logger.log("PING")
+            // the purpose of the ping is to keep this as warm as possible, so make sure the application has been
+            // initialised
+            LambdaEntrypoint.init()
             LambdaResponse(HttpConstants.OK, body="PONG")
           case LambdaRequest("GET", LambdaEntrypoint.COOKIE_ENDPOINT, Some(queryParams), Some(headers), _) =>
             routeToPlambda(headers, LambdaEntrypoint.COOKIE_ENDPOINT, queryParams)
