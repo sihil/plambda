@@ -7,6 +7,8 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.util.ByteString
 import com.amazonaws.HttpMethod
+import com.amazonaws.regions.Regions
+import com.amazonaws.services.lambda.AWSLambdaClient
 import com.amazonaws.services.lambda.runtime.{LambdaLogger, Context => λContext}
 import com.amazonaws.services.s3.model.{GeneratePresignedUrlRequest, ObjectMetadata, PutObjectRequest}
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client}
@@ -22,6 +24,7 @@ import scala.util.control.NonFatal
 
 object LambdaEntrypoint {
   println("Starting and initialising!")
+  val region = Option(System.getenv("AWS_DEFAULT_REGION")).map(Regions.fromName).get
   implicit val system = ActorSystem("LambdaActorSystem")
   implicit val materializer = ActorMaterializer()
   // Start the application
@@ -35,17 +38,20 @@ object LambdaEntrypoint {
   Play.start(application)
   println("Play application started")
 
-  val s3Client = new AmazonS3Client()
+  val s3Client: AmazonS3 = new AmazonS3Client().withRegion(region)
+  val lambdaClient: AWSLambdaClient = new AWSLambdaClient().withRegion(region)
 
   val PLAMBDA_ENDPOINT = "/plambda"
   val COOKIE_ENDPOINT = s"$PLAMBDA_ENDPOINT/moreCookies"
   val PING_ENDPOINT = s"$PLAMBDA_ENDPOINT/ping"
 
   var started = false
-  def init() = {
+  var plambdaConfig: PlambdaConfig = _
+  def init(context: λContext) = {
     if (!started) {
+      plambdaConfig = PlambdaConfig.getConfig(context)(lambdaClient)
       started = true
-      println(s"Initialised LambdaEntrypoint in ${application.mode.toString} mode")
+      context.getLogger.log(s"Initialised LambdaEntrypoint in ${application.mode.toString} mode")
     }
   }
 }
@@ -54,6 +60,7 @@ class LambdaEntrypoint extends Writeables {
 
   def run(lambdaRequestStream: InputStream, lambdaResponseStream: OutputStream, context: λContext): Unit = {
     implicit val logger = context.getLogger
+    LambdaEntrypoint.init(context)
     logger.log(s"Running at ${DateTime.now()}")
 
     // actually call the router
@@ -66,7 +73,7 @@ class LambdaEntrypoint extends Writeables {
             logger.log("PING")
             // the purpose of the ping is to keep this as warm as possible, so make sure the application has been
             // initialised
-            LambdaEntrypoint.init()
+
             LambdaResponse(HttpConstants.OK, body="PONG")
           case LambdaRequest("GET", LambdaEntrypoint.COOKIE_ENDPOINT, Some(queryParams), Some(headers), _) =>
             routeToPlambda(headers, LambdaEntrypoint.COOKIE_ENDPOINT, queryParams)
@@ -116,8 +123,8 @@ class LambdaEntrypoint extends Writeables {
         case (_, true, _, _) =>
           // binary body - upload and redirect to S3
           val headers = headersToSend(result, getSingleCookieLogRemainder(cookiesToSet, logger))
-          val url = binaryDataS3Url("flexible-restorer-lambda-code2-binary-data",
-            s"${context.getAwsRequestId}${lambdaRequest.path}", bytes, headers, LambdaEntrypoint.s3Client)
+          val url = binaryDataS3Url(LambdaEntrypoint.plambdaConfig.binaryBucketName,
+          s"${context.getAwsRequestId}${lambdaRequest.path}", bytes, headers, LambdaEntrypoint.s3Client)
           LambdaResponse(HttpConstants.SEE_OTHER, Map("Location" -> url.toString))
 
         case (_, false, _, _) =>

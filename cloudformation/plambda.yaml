@@ -1,0 +1,236 @@
+# This template is for running a lambda in a VPC - note that this is slower
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Stack to run a Play! app in AWS Lambda using Plaλ
+Parameters:
+  VpcId:
+    Description: The VPC in which Plaλ should run
+    Type: AWS::EC2::VPC::Id
+  Subnets:
+    Description: The subnets in which the Plaλ should run
+    Type: List<AWS::EC2::Subnet::Id>
+  App:
+    Description: Name of the Plaλ app (used for name spacing)
+    Type: String
+  ArtifactBucket:
+    Description: Bucket where plambda artifact is located
+    Type: String
+  ArtifactKey:
+    Description: Key in the bucket where the artifact is located
+    Type: String
+
+Resources:
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      # Allow logging to CloudWatch Logs
+      - PolicyName: logs
+        PolicyDocument:
+          Statement:
+            Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: "arn:aws:logs:*:*:*"
+      - PolicyName: lambda
+        PolicyDocument:
+          Statement:
+            Effect: Allow
+            Action:
+            - lambda:InvokeFunction
+            Resource: "*"
+      # the VPC policy is explicitly on the role here as it is needed as soon
+      # as the lambda is created. using an external policy creates a race
+      # condition
+      - PolicyName: VPCPolicy
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - ec2:CreateNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DetachNetworkInterface
+            - ec2:DeleteNetworkInterface
+            Resource: "*"
+
+  # Allow API gateway to execute the lambda
+  GateWayExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - apigateway.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Statement:
+            Effect: Allow
+            Action:
+            - lambda:InvokeFunction
+            - iam:PassRole
+            Resource:
+            - "*"
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Plambda security group
+      VpcId:
+        Ref: VpcId
+
+  # Allow us to get a configuration
+  LambdaDescriptionPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      Roles:
+      - Ref: LambdaRole
+      PolicyName: LambdaDescriptionPolicy
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+          - lambda:GetFunctionConfiguration
+          Resource:
+            Fn::GetAtt:
+            - PlambdaLambda
+            - Arn
+
+  # S3 bucket containing binary responses - auto expires content after a day
+  BinaryDataBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub ${App}-plambda-binary-data
+      LifecycleConfiguration:
+        Rules:
+        - ExpirationInDays: 1
+          Status: Enabled
+      CorsConfiguration:
+        CorsRules:
+        - AllowedMethods: [GET]
+          AllowedOrigins: ["*"]
+
+  # Policy to grant access to the binary response bucket - both get and put are needed
+  BinaryDataBucketPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: BinaryDataBucketPolicy
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:PutObject*
+          - s3:GetObject
+          Resource: !Sub arn:aws:s3:::${BinaryDataBucket}/*
+      Roles: !Ref LambdaRole
+
+  PlambdaLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${App}-plambda
+      Code:
+        S3Bucket: !Ref ArtifactBucket
+        S3Key: !Ref ArtifactKey
+      # Use the description of the lambda for configuration
+      Description: !Sub '{"binaryBucketName": "${BinaryDataBucket}"}'
+      Handler: plambda.LambdaEntrypoint::run
+      MemorySize: 1536
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: java8
+      Timeout: 120
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroup
+        SubnetIds: !Ref Subnets
+
+  PlambdaLambdaPermissions:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:invokeFunction
+      FunctionName: !GetAtt PlambdaLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${API}/*
+
+  # Event rule that triggers the first lambda every 5 minutes
+  PlambdaLambdaPingRule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: rate(5 minutes)
+      Targets:
+      - Id: PlambdaLambdaPingRule
+        Arn: !GetAtt PlambdaLambda.Arn
+        Input: '{"httpMethod": "PING", "path": "/plambda/ping"}'
+
+  # Permission to allow the event rule to trigger the first lambda
+  InvokePlambdaLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PlambdaLambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt PlambdaLambdaPingRule.Arn
+
+  API:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub Plambda ${App}
+      Description: !Sub Plambda ${App} API gateway
+
+  ProxyRootResourceAny:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: ANY
+      ResourceId: !GetAtt API.RootResourceId
+      RestApiId: !Ref API
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PlambdaLambda.Arn}/invocations
+
+  ProxyResource:
+      Type: AWS::ApiGateway::Resource
+      Properties:
+        ParentId: !GetAtt API.RootResourceId
+        PathPart: "{path+}"
+        RestApiId: !Ref API
+
+  ProxyResourceAny:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: ANY
+      ResourceId:
+        Ref: ProxyResource
+      RestApiId:
+        Ref: API
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PlambdaLambda.Arn}/invocations
+
+  APIDeployment:
+      Type: AWS::ApiGateway::Deployment
+      Properties:
+          Description: CFN deployment 2016-09-08 22:47
+          RestApiId: !Ref API
+          # ha ha ha - prod.
+          StageName: PROD
+      DependsOn:
+      - ProxyRootResourceAny
+      - ProxyResourceAny
