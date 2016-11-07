@@ -1,8 +1,8 @@
 == Plaλ!
 
-[ ![Download](https://api.bintray.com/packages/sihil/plambda/plambda/images/download.svg) ](https://bintray.com/sihil/plambda/plambda/_latestVersion)
+image::https://api.bintray.com/packages/sihil/plambda/plambda/images/download.svg[link="https://bintray.com/sihil/plambda/plambda/_latestVersion"]
 
-This is a somewhat comedic attempt to make [Play!](https://www.playframework.com/) apps work in AWS Lambda. It actually succeeds surprisingly well (so long as your expectations are appropriately low).
+This is a somewhat comedic attempt to make https://www.playframework.com/[Play!] apps work in AWS Lambda. It actually succeeds surprisingly well (so long as your expectations are appropriately low).
 
 === Getting started
 
@@ -34,10 +34,10 @@ topLevelDirectory in Universal := None
    
 === Known limitations? Plenty...
 
- - The API Gateway to Proxy Lambda integration can't cope with setting multiple cookies simultaneously. Plambda tries to deal with them by internal magic but only if they are set on a 3XX redirect response. If multiple cookies are set on a 2XX response then only one will be set and the others will be dropped (logging that this happened). 
+ - The API Gateway to Proxy Lambda integration http://stackoverflow.com/questions/39769222/how-can-i-send-multiple-set-cookie-headers-from-api-gateway-using-a-proxied-lamb[can't cope with setting multiple cookies] in one response. Plambda tries to deal with them by internal magic but only if they are set on a 3XX redirect response. If multiple cookies are set on a 2XX response then only one will be set and the others will be dropped (logging that this happened). 
  - Likewise, multiple identical query parameters are not supported, again due to a limitation in AWS.
- - API Gateway has the opinion that only UTF8 data is value and forces all data to or from a lambda into UTF-8. This means that any non-UTF8 responses could become corrupted (note that this is unusual for a Play! app which is UTF-8 throughout by default). Plaλ tries hard to return binary data to users correctly by funnelling such content via an S3 bucket when a returned content type is not on an internal UTF-8 safe whitelist.
- - Performance is somewhat poor when the application has not been used recently, due to the start up time of Lambda functions. This is somewhat mitigated by using 1.5Gb of RAM (as larger amounts of memory also seems to mean a faster CPU). In addition a five minute "ping" is supported by Plambda and used in the CloudFormation which helps to keep the function luke warm at minimal cost, significantly reducing latency for infrequently used apps.
+ - API Gateway has the opinion that only UTF8 data is value and forces all data to or from a lambda into UTF-8. This means that any http://stackoverflow.com/questions/31615734/returning-images-through-aws-api-gateway[non-UTF8 responses could become corrupted] (note that this is unusual for a Play! app which is UTF-8 throughout by default). Plaλ tries hard to return binary data to users correctly by funnelling such content via an S3 bucket when a returned content type is not on an internal UTF-8 safe whitelist.
+ - Performance is somewhat poor when the application has not been used recently, due to the start up time of Lambda functions. This is somewhat mitigated by using 1.5Gb of RAM (as https://aws.amazon.com/blogs/compute/50-increase-in-memory-capacity-for-aws-lambda-functions/[larger amounts of memory also means more CPU power]). In addition a five minute "ping" is supported by Plambda and used in the CloudFormation which helps to keep the function luke warm at minimal cost, significantly reducing latency for infrequently used apps.
  - WebSockets outright won't work and never will with the current design of Lambda.
    
 === Future work
