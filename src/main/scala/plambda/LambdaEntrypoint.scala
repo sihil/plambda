@@ -8,15 +8,15 @@ import akka.stream.ActorMaterializer
 import akka.util.ByteString
 import com.amazonaws.HttpMethod
 import com.amazonaws.regions.Regions
-import com.amazonaws.services.lambda.AWSLambdaClient
 import com.amazonaws.services.lambda.runtime.{LambdaLogger, Context => λContext}
 import com.amazonaws.services.s3.model.{GeneratePresignedUrlRequest, ObjectMetadata, PutObjectRequest}
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client}
 import org.joda.time.DateTime
 import play.api.libs.json.Json
-import play.api.mvc.{Cookie, Cookies, Result}
+import play.api.mvc._
 import play.api.test.{Helpers, Writeables}
 import play.api.{ApplicationLoader, _}
+import play.api.http.Writeable
 
 import scala.concurrent.Await
 import scala.language.postfixOps
@@ -39,7 +39,6 @@ object LambdaEntrypoint {
   println("Play application started")
 
   val s3Client: AmazonS3 = new AmazonS3Client().withRegion(region)
-  val lambdaClient: AWSLambdaClient = new AWSLambdaClient().withRegion(region)
 
   val PLAMBDA_ENDPOINT = "/plambda"
   val COOKIE_ENDPOINT = s"$PLAMBDA_ENDPOINT/moreCookies"
@@ -49,7 +48,7 @@ object LambdaEntrypoint {
   var plambdaConfig: PlambdaConfig = _
   def init(context: λContext) = {
     if (!started) {
-      plambdaConfig = PlambdaConfig.getConfig(context)(lambdaClient)
+      plambdaConfig = PlambdaConfig.getConfig(context)
       started = true
       context.getLogger.log(s"Initialised LambdaEntrypoint in ${application.mode.toString} mode")
     }
@@ -96,9 +95,17 @@ class LambdaEntrypoint extends Writeables {
     context.getLogger.log("Finished")
   }
 
+
   def routeToPlay(lambdaRequest: LambdaRequest, context: λContext)(implicit logger: LambdaLogger): LambdaResponse = {
     val playRequest = RequestParser.transform(lambdaRequest)
-    val maybeResult = Helpers.route(LambdaEntrypoint.application, playRequest)(Helpers.writeableOf_AnyContentAsEmpty)
+    val writeable: Writeable[AnyContent] = new Writeable[AnyContent](
+      transform = {
+        case AnyContentAsEmpty => ByteString.empty
+        case AnyContentAsText(t) => ByteString.apply(t, "UTF-8")
+      },
+      playRequest.headers.get(HttpConstants.CONTENT_TYPE)
+    )
+    val maybeResult = Helpers.route(LambdaEntrypoint.application, playRequest)(writeable)
     logger.log(maybeResult.fold(s"Route not found for $lambdaRequest")(_ => s"Successfully routed $lambdaRequest"))
 
     import Helpers.defaultAwaitTimeout

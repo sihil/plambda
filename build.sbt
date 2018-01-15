@@ -13,9 +13,8 @@ libraryDependencies ++= Seq(
   "com.typesafe.play" %% "play-json" % playVersion % "provided",
   "com.typesafe.play" %% "play-test" % playVersion % "provided",
   "com.amazonaws" % "aws-java-sdk-s3" % awsSdkVersion % "provided",
-  "com.amazonaws" % "aws-java-sdk-lambda" % awsSdkVersion % "provided",
-  "com.amazonaws" % "aws-lambda-java-core" % "1.1.0",
-  "com.amazonaws" % "aws-lambda-java-events" % "1.1.0" intransitive(),
+  "com.amazonaws" % "aws-lambda-java-core" % "1.2.0",
+  "com.amazonaws" % "aws-lambda-java-events" % "2.0.2",
   "com.amazonaws" % "aws-lambda-java-log4j" % "1.0.0"
 )
 
