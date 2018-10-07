@@ -4,7 +4,7 @@ import java.io.InputStream
 
 import com.amazonaws.services.lambda.runtime.LambdaLogger
 import play.api.libs.json.Json
-import play.api.mvc.AnyContentAsEmpty
+import play.api.mvc._
 import play.api.test.{FakeHeaders, FakeRequest}
 
 object RequestParser {
@@ -21,7 +21,7 @@ object RequestParser {
     request.asOpt
   }
 
-  def transform(request: LambdaRequest): FakeRequest[AnyContentAsEmpty.type] = {
+  def transform(request: LambdaRequest): FakeRequest[AnyContent] = {
     val queryString = for {
       queryMap <- request.queryStringParameters.toList
       (name, value) <- queryMap
@@ -29,11 +29,12 @@ object RequestParser {
     val pathWithQueryString =
       if (queryString.isEmpty) request.path
       else queryString.mkString(s"${request.path}?", "&", "")
+    val body: AnyContent = request.body.map(AnyContentAsText).getOrElse(AnyContentAsEmpty)
     FakeRequest(
       method = request.httpMethod,
       uri = pathWithQueryString,
       headers = FakeHeaders(request.headers.map(_.toList).getOrElse(Nil)),
-      body = AnyContentAsEmpty
+      body = body
     )
   }
 }
