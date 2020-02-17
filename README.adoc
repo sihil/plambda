@@ -12,7 +12,7 @@ This is a somewhat comedic attempt to make https://www.playframework.com/[Play!]
 ```
 resolvers += "Plambda Releases" at "https://dl.bintray.com/sihil/plambda"
 libraryDependencies ++= Seq(
-  "net.sihil" %% "plambda" % "0.0.1",
+  "net.sihil" %% "plambda" % "0.0.3",
   "com.amazonaws" % "aws-java-sdk-s3" % "1.11.48",
   "com.amazonaws" % "aws-java-sdk-lambda" % "1.11.48",
   component("play-test")
