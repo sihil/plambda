@@ -12,6 +12,8 @@ object RequestParser {
     pathParams.foldLeft(uri){ case (acc, (key, value)) => acc.replace(s"{$key}", value) }
   }
 
+
+
   // TODO: this should really return an either with better error reporting
   def fromStream(stream: InputStream)(implicit logger: LambdaLogger): Option[LambdaRequest] = {
     val json = Json.parse(stream)

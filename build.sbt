@@ -3,9 +3,9 @@ organization := "net.sihil"
 name := "plambda"
 description := "Wrapper for running Play! apps in AWS Lambda"
 
-scalaVersion in ThisProject := "2.11.8"
+scalaVersion in ThisProject := "2.12.12"
 
-val playVersion = "2.5.0"
+val playVersion = "2.8.0"
 val awsSdkVersion = "1.11.0"
 
 libraryDependencies ++= Seq(

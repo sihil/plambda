@@ -1,0 +1,5 @@
+package plambda
+
+trait LambdaRequestHandler {
+
+}

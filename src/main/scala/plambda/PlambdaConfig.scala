@@ -8,7 +8,7 @@ object PlambdaConfig {
   def getConfig(context: Context): PlambdaConfig = {
     try{
       PlambdaConfig(
-        binaryBucketName = System.getenv("BINARY_BUCKET_NAME")
+        binaryBucketName = "not used"
       )
     } catch {
       case NonFatal(t) =>

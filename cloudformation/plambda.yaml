@@ -111,35 +111,6 @@ Resources:
             - PlambdaLambda
             - Arn
 
-  # S3 bucket containing binary responses - auto expires content after a day
-  BinaryDataBucket:
-    Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
-    Properties:
-      BucketName: !Sub ${App}-plambda-binary-data
-      LifecycleConfiguration:
-        Rules:
-        - ExpirationInDays: 1
-          Status: Enabled
-      CorsConfiguration:
-        CorsRules:
-        - AllowedMethods: [GET]
-          AllowedOrigins: ["*"]
-
-  # Policy to grant access to the binary response bucket - both get and put are needed
-  BinaryDataBucketPolicy:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: BinaryDataBucketPolicy
-      PolicyDocument:
-        Statement:
-        - Effect: Allow
-          Action:
-          - s3:PutObject*
-          - s3:GetObject
-          Resource: !Sub arn:aws:s3:::${BinaryDataBucket}/*
-      Roles: !Ref LambdaRole
-
   PlambdaLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -148,7 +119,7 @@ Resources:
         S3Bucket: !Ref ArtifactBucket
         S3Key: !Ref ArtifactKey
       # Use the description of the lambda for configuration
-      Description: !Sub '{"binaryBucketName": "${BinaryDataBucket}"}'
+      Description: 'Play lambda test'
       Handler: plambda.LambdaEntrypoint::run
       MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
@@ -182,7 +153,7 @@ Resources:
     Properties:
       FunctionName: !GetAtt PlambdaLambda.Arn
       Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
+      Principal: events.amazonaws.comx
       SourceArn: !GetAtt PlambdaLambdaPingRule.Arn
 
   API:

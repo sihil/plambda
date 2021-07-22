@@ -24,7 +24,7 @@ import scala.util.control.NonFatal
 
 object LambdaEntrypoint {
   println("Starting and initialising!")
-  val region = Option(System.getenv("AWS_DEFAULT_REGION")).map(Regions.fromName).get
+//  val region = Option(System.getenv("AWS_DEFAULT_REGION")).map(Regions.fromName).get
   implicit val system = ActorSystem("LambdaActorSystem")
   implicit val materializer = ActorMaterializer()
   // Start the application
@@ -34,21 +34,18 @@ object LambdaEntrypoint {
     val loader = ApplicationLoader(context)
     loader.load(context)
   }
+
   println("Created application")
   Play.start(application)
   println("Play application started")
-
-  val s3Client: AmazonS3 = new AmazonS3Client().withRegion(region)
 
   val PLAMBDA_ENDPOINT = "/plambda"
   val COOKIE_ENDPOINT = s"$PLAMBDA_ENDPOINT/moreCookies"
   val PING_ENDPOINT = s"$PLAMBDA_ENDPOINT/ping"
 
   var started = false
-  var plambdaConfig: PlambdaConfig = _
   def init(context: λContext) = {
     if (!started) {
-      plambdaConfig = PlambdaConfig.getConfig(context)
       started = true
       context.getLogger.log(s"Initialised LambdaEntrypoint in ${application.mode.toString} mode")
     }
@@ -65,7 +62,7 @@ class LambdaEntrypoint extends Writeables {
     // actually call the router
     val maybeResponse: Option[LambdaResponse] = try {
       for {
-        lambdaRequest <- RequestParser.fromStream(lambdaRequestStream)
+        lambdaRequest: LambdaRequest <- RequestParser.fromStream(lambdaRequestStream)
       } yield {
         lambdaRequest match {
           case LambdaRequest("PING", _, _, _, _) =>
@@ -122,17 +119,16 @@ class LambdaEntrypoint extends Writeables {
       val isBinaryData = HttpConstants.isBinaryType(result.body.contentType)
       val redirectLocation = Helpers.redirectLocation(futureResult)
 
+
       (lambdaRequest.headers, isBinaryData, tooManyCookies, redirectLocation) match {
         case (Some(requestHeaders), _, true, Some(location)) =>
           // multiple cookies with a redirect
           cookieResponse(requestHeaders, cookiesToSet, location)
 
         case (_, true, _, _) =>
+          logger.log("Failed to parse none JSON request")
           // binary body - upload and redirect to S3
-          val headers = headersToSend(result, getSingleCookieLogRemainder(cookiesToSet, logger))
-          val url = binaryDataS3Url(LambdaEntrypoint.plambdaConfig.binaryBucketName,
-          s"${context.getAwsRequestId}${lambdaRequest.path}", bytes, headers, LambdaEntrypoint.s3Client)
-          LambdaResponse(HttpConstants.SEE_OTHER, Map("Location" -> url.toString))
+          LambdaResponse(HttpConstants.SEE_OTHER, body = "Failed to parse request body")
 
         case (_, false, _, _) =>
           // text body - parse as UTF-8 and return
@@ -167,33 +163,6 @@ class LambdaEntrypoint extends Writeables {
     result.body.contentLength.map(HttpConstants.CONTENT_LENGTH -> _.toString) ++
     maybeCookie.map(cookie => HttpConstants.SET_COOKIE -> Cookies.encodeSetCookieHeader(Seq(cookie)))
 
-  /**
-    * Push the data to S3 and return the URL
-    *
-    * @param bucket Name of S3 bucket to push data to
-    * @param key Path in S3 bucket
-    * @param bytes Data to upload
-    * @param headersToSend The headers that should be delivered
-    * @return
-    */
-  private def binaryDataS3Url(bucket: String, key: String, bytes: ByteString, headersToSend: Map[String, String],
-    s3Client: AmazonS3): URL = {
-
-    val bais = new ByteArrayInputStream(bytes.toArray)
-    val metadata = new ObjectMetadata()
-    headersToSend.foreach { case (name, value) => metadata.setHeader(name, value) }
-    metadata.setContentLength(bytes.length)
-
-    val request = new PutObjectRequest(bucket, key, bais, metadata)
-    s3Client.putObject(request)
-
-    val generatePresignedUrlRequest: GeneratePresignedUrlRequest =
-      new GeneratePresignedUrlRequest(bucket, key)
-        .withMethod(HttpMethod.GET)
-        .withExpiration(new DateTime().plusMinutes(5).toDate)
-
-    s3Client.generatePresignedUrl(generatePresignedUrlRequest)
-  }
 
   /** Create a response for setting multiple cookies
     *
