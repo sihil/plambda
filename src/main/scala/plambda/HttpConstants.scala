@@ -1,6 +1,7 @@
 package plambda
 
-import play.api.http.{HeaderNames, Status}
+import play.api.http.HeaderNames
+import play.api.http.Status
 
 object HttpConstants extends Status with HeaderNames {
   val mimeTypeTextWhitelist = Seq(
