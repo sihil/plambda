@@ -57,7 +57,6 @@ class LambdaEntrypoint extends Writeables {
 
     val lambdaRequestHandler = application.injector.instanceOf(classOf[LambdaRequestHandler])
 
-    // actually call the router
     val maybeResponse: Option[LambdaResponse] =
       try {
         for {
@@ -65,7 +64,6 @@ class LambdaEntrypoint extends Writeables {
             RequestParser.fromStream(lambdaRequestStream, lambdaRequestHandler)
         } yield {
           lambdaRequest match {
-
             case HttpRequest("PING", _, _, _, _) =>
               logger.log("PING")
               // the purpose of the ping is to keep this as warm as possible, so make sure the application has been

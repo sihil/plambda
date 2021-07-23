@@ -1,6 +1,7 @@
 package plambda
 
 import play.api.libs.json.Json
+import play.api.libs.json.OFormat
 sealed trait LambdaResponse
 
 sealed trait LambdaRequest
@@ -42,34 +43,30 @@ case class KinesisRequest(
     Records: Seq[KinesisRecords]
 ) extends LambdaRequest
 
-//(todo): emma For PoC never reports failures
+// (todo): emma For PoC never reports failures
 //info: https://docs.aws.amazon.com/lambda/latest/dg/with-kinesis.html 'Success and Failure conditions'
 case class KinesisResponse(batchItemFailures: Array[Int] = Array.empty[Int]) extends LambdaResponse
 
 object HttpRequest {
-  implicit val reads = Json.reads[HttpRequest]
+  implicit val formats: OFormat[HttpRequest] = Json.format[HttpRequest]
 }
 
 object HttpResponse {
-  implicit val writes = Json.writes[HttpResponse]
+  implicit val formats: OFormat[HttpResponse] = Json.format[HttpResponse]
 }
 
 object KinesisInfo {
-  implicit val reads = Json.reads[KinesisInfo]
-  implicit val writes = Json.writes[KinesisInfo]
+  implicit val formats: OFormat[KinesisInfo] = Json.format[KinesisInfo]
 }
 
 object KinesisRecords {
-  implicit val reads = Json.reads[KinesisRecords]
-  implicit val writes = Json.writes[KinesisRecords]
-
+  implicit val formats: OFormat[KinesisRecords] = Json.format[KinesisRecords]
 }
 
 object KinesisRequest {
-  implicit val reads = Json.reads[KinesisRequest]
-  implicit val writes = Json.writes[KinesisRequest]
+  implicit val formats: OFormat[KinesisRequest] = Json.format[KinesisRequest]
 }
 
 object KinesisResponse {
-  implicit val writes = Json.writes[KinesisResponse]
+  implicit val formats: OFormat[KinesisResponse] = Json.format[KinesisResponse]
 }
