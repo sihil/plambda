@@ -13,7 +13,7 @@ object RequestParser {
     pathParams.foldLeft(uri) { case (acc, (key, value)) => acc.replace(s"{$key}", value) }
   }
 
-  // TODO: this should really return an either with better error reporting
+  // TODO(emma): this should really return an either with better error reporting
   def fromStream(stream: InputStream, lambdaRequestHandler: LambdaRequestHandler)(
       implicit logger: LambdaLogger
   ): Option[LambdaRequest] = {

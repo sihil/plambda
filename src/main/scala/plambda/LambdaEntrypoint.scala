@@ -17,7 +17,6 @@ import HttpUtils._
 
 object LambdaEntrypoint {
   println("Starting and initialising!")
-//  val region = Option(System.getenv("AWS_DEFAULT_REGION")).map(Regions.fromName).get
   implicit val system = ActorSystem("LambdaActorSystem")
   implicit val materializer = ActorMaterializer()
   // Start the application
